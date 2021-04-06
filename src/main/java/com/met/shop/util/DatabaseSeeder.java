@@ -2,6 +2,7 @@ package com.met.shop.util;
 
 import com.met.shop.domain.User;
 import com.met.shop.domain.security.Role;
+import com.met.shop.domain.security.UserRole;
 import com.met.shop.repository.RoleRepository;
 import com.met.shop.repository.UserRepository;
 import org.slf4j.Logger;
@@ -55,7 +56,8 @@ public class DatabaseSeeder {
             systemAdmin.setEmail("admin@mail.com");
             systemAdmin.setUsername("admin");
             systemAdmin.setPassword(SecurityUtility.passwordEncoder().encode("admin"));
-            userRepository.save(systemAdmin);
+            systemAdmin.setUserRoles(Collections.singleton(new UserRole(systemAdmin, systemAdminRole)));
+            systemAdmin = userRepository.save(systemAdmin);
         }
     }
 }
