@@ -4,18 +4,18 @@ import com.met.shop.domain.Article;
 import com.met.shop.domain.CartItem;
 import com.met.shop.domain.ShoppingCart;
 import com.met.shop.domain.User;
+import com.met.shop.dto.AddToCartDto;
 import com.met.shop.service.ArticleService;
 import com.met.shop.service.ShoppingCartService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-@Controller
+@RestController
 @RequestMapping("/shopping-cart")
 public class ShoppingCartController {
 		
@@ -26,40 +26,35 @@ public class ShoppingCartController {
 	private ShoppingCartService shoppingCartService;
 	
 	@RequestMapping("/cart")
-	public String shoppingCart(Model model, Authentication authentication) {
+	public ResponseEntity<ShoppingCart> shoppingCart( Authentication authentication) {
 		User user = (User) authentication.getPrincipal();
 		ShoppingCart shoppingCart = shoppingCartService.getShoppingCart(user);
-		model.addAttribute("cartItemList", shoppingCart.getCartItems());
-		model.addAttribute("shoppingCart", shoppingCart);		
-		return "shoppingCart";
+		return ResponseEntity.ok(shoppingCart);
 	}
 
-	@RequestMapping("/add-item")
-	public String addItem(@ModelAttribute("article") Article article, @RequestParam("qty") String qty,
-						  @RequestParam("size") String size, RedirectAttributes attributes, Model model, Authentication authentication) {
-		article = articleService.findArticleById(article.getId());				
-		if (!article.hasStock(Integer.parseInt(qty))) {
-			attributes.addFlashAttribute("notEnoughStock", true);
-			return "redirect:/article-detail?id="+article.getId();
+	@RequestMapping(value = "/add-item", method = RequestMethod.POST)
+	public ResponseEntity<?> addItem(@RequestBody AddToCartDto addToCartDto, Authentication authentication) {
+		Article article = articleService.findArticleById(addToCartDto.getArticleId());
+		if (!article.hasStock(addToCartDto.getQty())) {
+			return ResponseEntity.badRequest().body("Not enough stock");
 		}		
 		User user = (User) authentication.getPrincipal();		
-		shoppingCartService.addArticleToShoppingCart(article, user, Integer.parseInt(qty), size);
-		attributes.addFlashAttribute("addArticleSuccess", true);
-		return "redirect:/article-detail?id="+article.getId();
+		shoppingCartService.addArticleToShoppingCart(article, user, addToCartDto.getQty(), addToCartDto.getSize());
+		return ResponseEntity.ok().build();
 	}
 	
-	@RequestMapping("/update-item")
-	public String updateItemQuantity(@RequestParam("id") Long cartItemId,
-                                     @RequestParam("qty") Integer qty, Model model) {
+	@RequestMapping(value = "/update-item/{id}/{qty}", method = RequestMethod.PUT)
+	public ResponseEntity<?> updateItemQuantity(@PathVariable("id") Long cartItemId,
+                                     @PathVariable("qty") Integer qty) {
 		CartItem cartItem = shoppingCartService.findCartItemById(cartItemId);
 		if (cartItem.canUpdateQty(qty)) {
 			shoppingCartService.updateCartItem(cartItem, qty);
 		}
-		return "redirect:/shopping-cart/cart";
+		return ResponseEntity.ok().build();
 	}
 	
-	@RequestMapping("/remove-item")
-	public String removeItem(@RequestParam("id") Long id) {
+	@RequestMapping(value = "/remove-item/{id}", method = RequestMethod.DELETE)
+	public String removeItem(@PathVariable("id") Long id) {
 		shoppingCartService.removeCartItem(shoppingCartService.findCartItemById(id));		
 		return "redirect:/shopping-cart/cart";
 	} 

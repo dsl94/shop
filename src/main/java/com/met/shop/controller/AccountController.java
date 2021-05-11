@@ -3,20 +3,19 @@ package com.met.shop.controller;
 import com.met.shop.domain.Address;
 import com.met.shop.domain.Order;
 import com.met.shop.domain.User;
+import com.met.shop.dto.NewUserDto;
 import com.met.shop.service.OrderService;
 import com.met.shop.service.UserService;
 import com.met.shop.service.impl.UserSecurityService;
 import com.met.shop.util.SecurityUtility;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
@@ -24,7 +23,7 @@ import java.security.Principal;
 import java.util.Arrays;
 import java.util.List;
 
-@Controller
+@RestController
 public class AccountController {
 
 	@Autowired
@@ -36,114 +35,81 @@ public class AccountController {
 	@Autowired
 	private OrderService orderService;
 
-	@RequestMapping("/login")
-	public String log(Model model) {
-		model.addAttribute("usernameExists", model.asMap().get("usernameExists"));
-		model.addAttribute("emailExists", model.asMap().get("emailExists"));
-		return "myAccount";
-	}
 	
 	@RequestMapping("/my-profile")
-	public String myProfile(Model model, Authentication authentication) {
+	public ResponseEntity<User> myProfile(Authentication authentication) {
 		User user = (User) authentication.getPrincipal();
-		model.addAttribute("user", user);
-		return "myProfile";
+		return ResponseEntity.ok(user);
 	}
 	
 	@RequestMapping("/my-orders")
-	public String myOrders(Model model, Authentication authentication) {
+	public ResponseEntity<List<Order>> myOrders(Authentication authentication) {
 		User user = (User) authentication.getPrincipal();
-		model.addAttribute("user", user);
 		List<Order> orders = orderService.findByUser(user);
-		model.addAttribute("orders", orders);
-		return "myOrders";
+		return ResponseEntity.ok(orders);
 	}
-	
-	@RequestMapping("/my-address")
-	public String myAddress(Model model, Principal principal) {
-		User user = userService.findByUsername(principal.getName());
-		model.addAttribute("user", user);
-		return "myAddress";
-	}
+
 	
 	@RequestMapping(value="/update-user-address", method= RequestMethod.POST)
-	public String updateUserAddress(@ModelAttribute("address") Address address,
-                                    Model model, Principal principal) throws Exception {
+	public ResponseEntity<?> updateUserAddress(@RequestBody Address address,
+                                   Principal principal) throws Exception {
 		User currentUser = userService.findByUsername(principal.getName());
 		if(currentUser == null) {
 			throw new Exception ("User not found");
 		}
 		currentUser.setAddress(address);
 		userService.save(currentUser);
-		return "redirect:/my-address";
+		return ResponseEntity.ok().build();
 	}
 	
 	@RequestMapping(value="/new-user", method= RequestMethod.POST)
-	public String newUserPost(@Valid @ModelAttribute("user") User user, BindingResult bindingResults,
-                              @ModelAttribute("new-password") String password,
-                              RedirectAttributes redirectAttributes, Model model) {
-		model.addAttribute("email", user.getEmail());
-		model.addAttribute("username", user.getUsername());	
-		boolean invalidFields = false;
-		if (bindingResults.hasErrors()) {
-			return "redirect:/login";
-		}		
-		if (userService.findByUsername(user.getUsername()) != null) {
-			redirectAttributes.addFlashAttribute("usernameExists", true);
-			invalidFields = true;
-		}
-		if (userService.findByEmail(user.getEmail()) != null) {
-			redirectAttributes.addFlashAttribute("emailExists", true);
+	public ResponseEntity<?> newUserPost(@Valid @RequestBody NewUserDto newUser) {
+		boolean invalidFields = userService.findByUsername(newUser.getUser().getUsername()) != null;
+
+		if (userService.findByEmail(newUser.getUser().getEmail()) != null) {
 			invalidFields = true;
 		}	
 		if (invalidFields) {
-			return "redirect:/login";
+			return ResponseEntity.badRequest().build();
 		}		
-		user = userService.createUser(user.getUsername(), password,  user.getEmail(), Arrays.asList("ROLE_USER"));	
-		userSecurityService.authenticateUser(user.getUsername());
-		return "redirect:/my-profile";  
+		userService.createUser(newUser.getUser().getUsername(), newUser.getPassword(),  newUser.getUser().getEmail(), Arrays.asList("ROLE_USER"));
+		userSecurityService.authenticateUser(newUser.getUser().getUsername());
+		return ResponseEntity.ok().build();
 	}
 		
 	@RequestMapping(value="/update-user-info", method= RequestMethod.POST)
-	public String updateUserInfo(@ModelAttribute("user") User user,
-                                 @RequestParam("newPassword") String newPassword,
-                                 Model model, Principal principal) throws Exception {
+	public ResponseEntity<?> updateUserInfo(@Valid @RequestBody NewUserDto newUser, Principal principal) throws Exception {
 		User currentUser = userService.findByUsername(principal.getName());
 		if(currentUser == null) {
 			throw new Exception ("User not found");
 		}
 		/*check username already exists*/
-		User existingUser = userService.findByUsername(user.getUsername());
+		User existingUser = userService.findByUsername(newUser.getUser().getUsername());
 		if (existingUser != null && !existingUser.getId().equals(currentUser.getId()))  {
-			model.addAttribute("usernameExists", true);
-			return "myProfile";
+			return ResponseEntity.badRequest().build();
 		}	
 		/*check email already exists*/
-		existingUser = userService.findByEmail(user.getEmail());
+		existingUser = userService.findByEmail(newUser.getUser().getEmail());
 		if (existingUser != null && !existingUser.getId().equals(currentUser.getId()))  {
-			model.addAttribute("emailExists", true);
-			return "myProfile";
+			return ResponseEntity.badRequest().build();
 		}			
 		/*update password*/
-		if (newPassword != null && !newPassword.isEmpty() && !newPassword.equals("")){
+		if (newUser.getPassword() != null && !newUser.getPassword().isEmpty() && !newUser.getPassword().equals("")){
 			BCryptPasswordEncoder passwordEncoder = SecurityUtility.passwordEncoder();
 			String dbPassword = currentUser.getPassword();
-			if(passwordEncoder.matches(user.getPassword(), dbPassword)){
-				currentUser.setPassword(passwordEncoder.encode(newPassword));
+			if(passwordEncoder.matches(newUser.getUser().getPassword(), dbPassword)){
+				currentUser.setPassword(passwordEncoder.encode(newUser.getPassword()));
 			} else {
-				model.addAttribute("incorrectPassword", true);
-				return "myProfile";
+				return ResponseEntity.badRequest().build();
 			}
 		}		
-		currentUser.setFirstName(user.getFirstName());
-		currentUser.setLastName(user.getLastName());
-		currentUser.setUsername(user.getUsername());
-		currentUser.setEmail(user.getEmail());		
+		currentUser.setFirstName(newUser.getUser().getFirstName());
+		currentUser.setLastName(newUser.getUser().getLastName());
+		currentUser.setUsername(newUser.getUser().getUsername());
+		currentUser.setEmail(newUser.getUser().getEmail());
 		userService.save(currentUser);
-		model.addAttribute("updateSuccess", true);
-		model.addAttribute("user", currentUser);				
-		userSecurityService.authenticateUser(currentUser.getUsername());		
-		return "myProfile";
+		userSecurityService.authenticateUser(currentUser.getUsername());
+		return ResponseEntity.ok().build();
 	}
 	
 	@RequestMapping("/order-detail")

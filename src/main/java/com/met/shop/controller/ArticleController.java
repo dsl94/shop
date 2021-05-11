@@ -1,103 +1,72 @@
 package com.met.shop.controller;
 
 import com.met.shop.domain.*;
+import com.met.shop.dto.CreateArticleDto;
 import com.met.shop.service.ArticleService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 import java.util.List;
 
-@Controller
+@RestController
 @RequestMapping("/article")
-public class ArticleController {
+public class  ArticleController {
 
 	@Autowired
 	private ArticleService articleService;
 	
-	@RequestMapping("/add")
-	public String addArticle(Model model) {
-		Article article = new Article();
-		model.addAttribute("article", article);
-		model.addAttribute("allSizes", articleService.getAllSizes());
-		model.addAttribute("allBrands", articleService.getAllBrands());
-		model.addAttribute("allCategories", articleService.getAllCategories());
-		return "addArticle";
-	}
-	
 	@RequestMapping(value="/add", method= RequestMethod.POST)
-	public String addArticlePost(@ModelAttribute("article") Article article, HttpServletRequest request) {
+	public ResponseEntity<?> addArticlePost(@RequestBody CreateArticleDto articleDto) {
 		Article newArticle = new ArticleBuilder()
-				.withTitle(article.getTitle())
-				.stockAvailable(article.getStock())
-				.withPrice(article.getPrice())
-				.imageLink(article.getPicture())
-				.sizesAvailable(Arrays.asList(request.getParameter("size").split("\\s*,\\s*")))
-				.ofCategories(Arrays.asList(request.getParameter("category").split("\\s*,\\s*")))
-				.ofBrand(Arrays.asList(request.getParameter("brand").split("\\s*,\\s*")))
+				.withTitle(articleDto.getArticle().getTitle())
+				.stockAvailable(articleDto.getArticle().getStock())
+				.withPrice(articleDto.getArticle().getPrice())
+				.imageLink(articleDto.getArticle().getPicture())
+				.sizesAvailable(Arrays.asList(articleDto.getSize().split("\\s*,\\s*")))
+				.ofCategories(Arrays.asList(articleDto.getSize().split("\\s*,\\s*")))
+				.ofBrand(Arrays.asList(articleDto.getSize().split("\\s*,\\s*")))
 				.build();		
 		articleService.saveArticle(newArticle);	
-		return "redirect:article-list";
+		return ResponseEntity.ok().build();
 	}
 	
 	@RequestMapping("/article-list")
-	public String articleList(Model model) {
+	public ResponseEntity<List<Article>> articleList(Model model) {
 		List<Article> articles = articleService.findAllArticles();
-		model.addAttribute("articles", articles);
-		return "articleList";
+		return ResponseEntity.ok(articles);
 	}
 	
-	@RequestMapping("/edit")
-	public String editArticle(@RequestParam("id") Long id, Model model) {
+	@RequestMapping("/info/{id}")
+	public ResponseEntity<Article> info(@PathVariable("id") Long id) {
 		Article article = articleService.findArticleById(id);
-		String preselectedSizes = "";
-		for (Size size : article.getSizes()) {
-			preselectedSizes += (size.getValue() + ",");
-		}
-		String preselectedBrands = "";
-		for (Brand brand : article.getBrands()) {
-			preselectedBrands += (brand.getName() + ",");
-		}
-		String preselectedCategories = "";
-		for (Category category : article.getCategories()) {
-			preselectedCategories += (category.getName() + ",");
-		}		
-		model.addAttribute("article", article);
-		model.addAttribute("preselectedSizes", preselectedSizes);
-		model.addAttribute("preselectedBrands", preselectedBrands);
-		model.addAttribute("preselectedCategories", preselectedCategories);
-		model.addAttribute("allSizes", articleService.getAllSizes());
-		model.addAttribute("allBrands", articleService.getAllBrands());
-		model.addAttribute("allCategories", articleService.getAllCategories());
-		return "editArticle";
+		return ResponseEntity.ok(article);
 	}
 	
-	@RequestMapping(value="/edit", method= RequestMethod.POST)
-	public String editArticlePost(@ModelAttribute("article") Article article, HttpServletRequest request) {
+	@RequestMapping(value="/edit/{id}", method= RequestMethod.PUT)
+	public ResponseEntity<?> editArticlePost(@PathVariable("id") Long id, @RequestBody CreateArticleDto articleDto) {
 		Article newArticle = new ArticleBuilder()
-				.withTitle(article.getTitle())
-				.stockAvailable(article.getStock())
-				.withPrice(article.getPrice())
-				.imageLink(article.getPicture())
-				.sizesAvailable(Arrays.asList(request.getParameter("size").split("\\s*,\\s*")))
-				.ofCategories(Arrays.asList(request.getParameter("category").split("\\s*,\\s*")))
-				.ofBrand(Arrays.asList(request.getParameter("brand").split("\\s*,\\s*")))
+				.withTitle(articleDto.getArticle().getTitle())
+				.stockAvailable(articleDto.getArticle().getStock())
+				.withPrice(articleDto.getArticle().getPrice())
+				.imageLink(articleDto.getArticle().getPicture())
+				.sizesAvailable(Arrays.asList(articleDto.getSize().split("\\s*,\\s*")))
+				.ofCategories(Arrays.asList(articleDto.getSize().split("\\s*,\\s*")))
+				.ofBrand(Arrays.asList(articleDto.getSize().split("\\s*,\\s*")))
 				.build();
-		newArticle.setId(article.getId());
+		newArticle.setId(id);
 		articleService.saveArticle(newArticle);	
-		return "redirect:article-list";
+		return ResponseEntity.ok().build();
 	}
 	
-	@RequestMapping("/delete")
-	public String deleteArticle(@RequestParam("id") Long id) {
+	@RequestMapping(value = "/delete/{id}", method = RequestMethod.DELETE)
+	public ResponseEntity<?> deleteArticle(@PathVariable("id") Long id) {
 		articleService.deleteArticleById(id);
-		return "redirect:article-list";
+		return ResponseEntity.ok().build();
 	}
 	
 }
